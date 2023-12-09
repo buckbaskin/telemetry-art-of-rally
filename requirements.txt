@@ -1,2 +1,3 @@
 opencv-python>=3.4.4
 pytesseract
+matplotlib

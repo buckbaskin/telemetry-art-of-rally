@@ -24,3 +24,9 @@ Key Elements / Features:
 
 Over time, these features will be automatically parsed from gameplay imagery
 and used to create telemetry timeseries.
+
+## Telemetry
+
+Simple prototype telemetry plot
+
+![Squigly lines on 3 sets of axis](docs/example_telemetry.png)

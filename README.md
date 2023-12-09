@@ -14,3 +14,13 @@ track position) in a visual style that complements the Art of Rally game style.
 Screenshot from Art of Rally game showing model car driving 82 mph
 
 ![Screenshot from Art of Rally game showing model car driving 82 mph](data/lake_nakaru_r/001/image-0562.jpeg)
+
+Key Elements / Features:
+- [x] Elapsed Time (top right)
+- [ ] Progress along the track (left hand side)
+- [ ] Speed (bottom center, left)
+- [ ] Gear (bottom center, center)
+- [ ] Engine RPM (bottom center, right)
+
+Over time, these features will be automatically parsed from gameplay imagery
+and used to create telemetry timeseries.

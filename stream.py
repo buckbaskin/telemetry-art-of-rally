@@ -105,50 +105,58 @@ def stream_times(path, verbose=False, interactive=False):
         cv2.waitKey(0)
 
 
-indexes = []
-elapsed_time = []
+def plot(indexes, elapsed_time):
+    elapsed_time = list(map(lambda x: x.total_seconds(), elapsed_time))
+    start_time_index = len(elapsed_time) - list(reversed(elapsed_time)).index(0.0) - 1
 
-for idx, delta_t in tqdm(stream_times("data/lake_nakaru_r/001/")):
-    indexes.append(idx)
-    elapsed_time.append(delta_t)
+    print("Plotting")
 
-    if idx > 100 or delta_t.total_seconds() > 60.0:
-        break
+    travel = np.array(indexes[start_time_index:])
+    elapsed_time = np.array(elapsed_time[start_time_index:])
 
-elapsed_time = list(map(lambda x: x.total_seconds(), elapsed_time))
-start_time_index = len(elapsed_time) - list(reversed(elapsed_time)).index(0.0) - 1
+    fig, axs = plt.subplots(figsize=(1920.0 / 300, 1080.0 / 300), ncols=1, nrows=3)
 
-print("Plotting")
+    for i in range(3):
+        axs[i].set_xlabel("Travel [m] (incorrect for now)")
 
-travel = np.array(indexes[start_time_index:])
-elapsed_time = np.array(elapsed_time[start_time_index:])
+    top = axs[0]
+    speed = 60 + 5 * np.sin(travel / 5.0)
+
+    top.set_ylabel("Speed (mph)")
+    top.set_ylim(bottom=0, top=1.1 * np.max(speed))
+    top.plot(travel, speed)
+
+    mid = axs[1]
+
+    mid.set_ylabel("Elapsed Time (sec)")
+    mid.set_ylim(bottom=0, top=1.1 * np.max(elapsed_time))
+    mid.plot(travel, elapsed_time)
+
+    bottom = axs[2]
+
+    rpm = 4 + 2 * np.sin(travel / 2.0)
+
+    bottom.set_ylabel("Rpm (rev / min)")
+    bottom.set_ylim(bottom=0, top=1.1 * np.max(rpm))
+    bottom.plot(travel, rpm)
+
+    plt.tight_layout()
+    plt.show()
 
 
-fig, axs = plt.subplots(figsize=(1920.0 / 300, 1080.0 / 300), ncols=1, nrows=3)
+def main():
+    indexes = []
+    elapsed_time = []
 
-for i in range(3):
-    axs[i].set_xlabel("Travel [m] (incorrect for now)")
+    for idx, delta_t in tqdm(stream_times("data/lake_nakaru_r/001/")):
+        indexes.append(idx)
+        elapsed_time.append(delta_t)
 
-top = axs[0]
-speed = 60 + 5 * np.sin(travel / 5.0)
+        if idx > 100 or delta_t.total_seconds() > 60.0:
+            break
 
-top.set_ylabel("Speed (mph)")
-top.set_ylim(bottom=0, top=1.1 * np.max(speed))
-top.plot(travel, speed)
+    plot(indexes=indexes, elapsed_time=elapsed_time)
 
-mid = axs[1]
 
-mid.set_ylabel("Elapsed Time (sec)")
-mid.set_ylim(bottom=0, top=1.1 * np.max(elapsed_time))
-mid.plot(travel, elapsed_time)
-
-bottom = axs[2]
-
-rpm = 4 + 2 * np.sin(travel / 2.0)
-
-bottom.set_ylabel("Rpm (rev / min)")
-bottom.set_ylim(bottom=0, top=1.1 * np.max(rpm))
-bottom.plot(travel, rpm)
-
-plt.tight_layout()
-plt.show()
+if __name__ == "__main__":
+    main()

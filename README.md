@@ -27,6 +27,6 @@ and used to create telemetry timeseries.
 
 ## Telemetry
 
-Simple prototype telemetry plot
+Example prototype telemetry plot based on the data in `data/lake_nakaru_r/001/`
 
 ![Squigly lines on 3 sets of axis](docs/example_telemetry.png)

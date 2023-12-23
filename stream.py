@@ -32,11 +32,14 @@ progress_bottom_right = (55, 1006)
 time_top_left = (1695, 45)
 time_bottom_right = (1840, 100)
 
-speed_top_left = (692 + 10, 1011 + 10)
-speed_bottom_right = (789, 1067 - 5)
+speed_top_left = (710, 1011)
+speed_bottom_right = (789 + 10, 1067 + 5)
+
+TESS_CONFIG_STR = "--psm 7 -c tessedit_char_whitelist=0123456789"
+TESS_CONFIG_FMT = "--psm %d -c tessedit_char_whitelist=0123456789"
 
 
-def stream_speed(path, verbose=False, interactive=False):
+def stream_speed(path, verbose=True, interactive=True):
     last_speed = None
 
     for idx, file_contents in enumerate(stream_files(path)):
@@ -49,7 +52,7 @@ def stream_speed(path, verbose=False, interactive=False):
         if verbose:
             print(idx, "Processing")
 
-        ocr_speed = pytesseract.image_to_string(speed_slice)
+        ocr_speed = pytesseract.image_to_string(speed_slice, config=TESS_CONFIG_STR)
         ocr_speed = ocr_speed.strip(r"\w")
         ocr_speed = ocr_speed.strip(r"\x0c")
 
@@ -74,9 +77,43 @@ def stream_speed(path, verbose=False, interactive=False):
             (speed,) = matches.groups()
             yield idx, int(speed)
         else:
-            if interactive:
+            if interactive and idx > 50:
                 print(idx, "visualization")
                 cv2.imshow(WINDOW_NAME, speed_slice)
+
+                speed_slice_gray = cv2.cvtColor(speed_slice, cv2.COLOR_RGB2GRAY)
+                threshold, speed_slice_threshold = cv2.threshold(
+                    speed_slice_gray, 150, 255, cv2.THRESH_BINARY_INV
+                )
+                speed_slice_threshold = cv2.cvtColor(
+                    speed_slice_threshold, cv2.COLOR_GRAY2RGB
+                )
+                print(speed_slice_threshold.shape)
+                assert len(speed_slice_threshold.shape) == 3
+                assert speed_slice_threshold.shape[2] == 3
+
+                cv2.imshow(WINDOW_NAME + " T", speed_slice_threshold)
+
+                ocr_alt = pytesseract.image_to_string(
+                    speed_slice_gray, config=TESS_CONFIG_STR
+                )
+                ocr_alt = ocr_alt.strip(r"\w")
+                print("gray ocr", ocr_alt)
+                ocr_b = pytesseract.image_to_string(
+                    speed_slice_threshold, config=TESS_CONFIG_STR
+                )
+                ocr_b = ocr_b.strip("\w")
+                print("thre ocr", ocr_b)
+
+                for i in range(14):
+                    try:
+                        ocr = pytesseract.image_to_string(
+                            speed_slice_threshold, config=TESS_CONFIG_FMT % i
+                        )
+                        print("Mode", i, "ocr", ocr)
+                    except pytesseract.pytesseract.TesseractError as e:
+                        print(i, "skipping error", e)
+
                 print("Waiting for Key")
                 cv2.waitKey(0)
 
@@ -203,18 +240,18 @@ def plot(indexes, elapsed_time, speeds):
 
 
 def main():
+    indexes_checksum = []
+    speeds = []
+    for idx, speed in tqdm(stream_speed("data/lake_nakaru_r/001/")):
+        indexes_checksum.append(idx)
+        speeds.append(speed)
+
     indexes = []
     elapsed_time = []
 
     for idx, delta_t in tqdm(stream_times("data/lake_nakaru_r/001/")):
         indexes.append(idx)
         elapsed_time.append(delta_t)
-
-    indexes_checksum = []
-    speeds = []
-    for idx, speed in tqdm(stream_speed("data/lake_nakaru_r/001/")):
-        indexes_checksum.append(idx)
-        speeds.append(speed)
 
     # # TODO: hack for when stopping short
     # indexes = indexes[: len(indexes_checksum)]

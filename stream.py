@@ -1,4 +1,6 @@
 import numpy as np
+from matplotlib import pyplot as plt
+from tqdm import tqdm
 from datetime import timedelta
 import re
 import pytesseract
@@ -7,7 +9,7 @@ import cv2
 
 
 def stream_files(path):
-    for root, dirs, files in os.walk("data/lake_nakaru_r/001/"):
+    for root, _dirs, files in os.walk("data/lake_nakaru_r/001/"):
         for shortname in sorted(files):
             filename = os.path.join(root, shortname)
             if not filename.endswith(".jpeg"):
@@ -17,7 +19,7 @@ def stream_files(path):
 
             assert img is not None
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            yield img
+            yield img_rgb
 
 
 WINDOW_NAME = "Preview"
@@ -44,7 +46,7 @@ def stream_times(path, verbose=False, interactive=False):
         ocr_time = pytesseract.image_to_string(time_slice)
         ocr_time = ocr_time.strip(r"\w")
 
-        matches = re.search("(\d+)\D(\d+)\D(\d+)", ocr_time)
+        matches = re.search(r"(\d+)\D(\d+)\D(\d+)", ocr_time)
         happy_regex = False
         if matches is not None and len(matches.groups()) >= 3:
             happy_regex = True
@@ -103,5 +105,50 @@ def stream_times(path, verbose=False, interactive=False):
         cv2.waitKey(0)
 
 
-for idx, delta_t in stream_times("data/lake_nakaru_r/001/"):
-    print(idx, delta_t, delta_t.total_seconds())
+indexes = []
+elapsed_time = []
+
+for idx, delta_t in tqdm(stream_times("data/lake_nakaru_r/001/")):
+    indexes.append(idx)
+    elapsed_time.append(delta_t)
+
+    if idx > 100 or delta_t.total_seconds() > 60.0:
+        break
+
+elapsed_time = list(map(lambda x: x.total_seconds(), elapsed_time))
+start_time_index = len(elapsed_time) - list(reversed(elapsed_time)).index(0.0) - 1
+
+print("Plotting")
+
+travel = np.array(indexes[start_time_index:])
+elapsed_time = np.array(elapsed_time[start_time_index:])
+
+
+fig, axs = plt.subplots(figsize=(1920.0 / 300, 1080.0 / 300), ncols=1, nrows=3)
+
+for i in range(3):
+    axs[i].set_xlabel("Travel [m] (incorrect for now)")
+
+top = axs[0]
+speed = 60 + 5 * np.sin(travel / 5.0)
+
+top.set_ylabel("Speed (mph)")
+top.set_ylim(bottom=0, top=1.1 * np.max(speed))
+top.plot(travel, speed)
+
+mid = axs[1]
+
+mid.set_ylabel("Elapsed Time (sec)")
+mid.set_ylim(bottom=0, top=1.1 * np.max(elapsed_time))
+mid.plot(travel, elapsed_time)
+
+bottom = axs[2]
+
+rpm = 4 + 2 * np.sin(travel / 2.0)
+
+bottom.set_ylabel("Rpm (rev / min)")
+bottom.set_ylim(bottom=0, top=1.1 * np.max(rpm))
+bottom.plot(travel, rpm)
+
+plt.tight_layout()
+plt.show()

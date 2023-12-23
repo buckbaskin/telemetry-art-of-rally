@@ -21,6 +21,8 @@ def stream_files(path):
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             yield img_rgb
 
+    print("last filename", filename)
+
 
 WINDOW_NAME = "Preview"
 
@@ -56,17 +58,18 @@ def stream_speed(path, verbose=False, interactive=False):
         if matches is not None and len(matches.groups()) == 1:
             happy_regex = True
 
-        print(idx, "pytesseract")
-        print(
-            "ocr text",
-            (len(ocr_speed), ocr_speed) if len(ocr_speed) > 1 else "? " + ocr_speed,
-        )
-        print(
-            idx,
-            "Happy Regex?",
-            happy_regex,
-            matches.groups() if matches is not None else "x-x-x",
-        )
+        if verbose:
+            print(idx, "pytesseract")
+            print(
+                "ocr text",
+                (len(ocr_speed), ocr_speed) if len(ocr_speed) > 1 else "? " + ocr_speed,
+            )
+            print(
+                idx,
+                "Happy Regex?",
+                happy_regex,
+                matches.groups() if matches is not None else "x-x-x",
+            )
         if happy_regex:
             (speed,) = matches.groups()
             yield idx, int(speed)
@@ -110,6 +113,7 @@ def stream_times(path, verbose=False, interactive=False):
                 if verbose:
                     print("Defer", idx)
                 last_time = (idx, current_time)
+
                 continue
 
             last_idx, last_duration = last_time
@@ -142,7 +146,7 @@ def stream_times(path, verbose=False, interactive=False):
     assert last_time is not None
 
     # end of loop, give the last time
-    for yield_idx in range(last_time[0], idx):
+    for yield_idx in range(last_time[0], idx + 1):
         if verbose:
             print("Cleanup", idx)
         yield yield_idx, last_duration + (dt * (yield_idx - last_idx))
@@ -206,21 +210,15 @@ def main():
         indexes.append(idx)
         elapsed_time.append(delta_t)
 
-        if idx > 150:
-            break
-
     indexes_checksum = []
     speeds = []
     for idx, speed in tqdm(stream_speed("data/lake_nakaru_r/001/")):
         indexes_checksum.append(idx)
         speeds.append(speed)
 
-        if idx > 100:
-            break
-
-    # TODO: hack for when stopping short
-    indexes = indexes[: len(indexes_checksum)]
-    elapsed_time = elapsed_time[: len(indexes_checksum)]
+    # # TODO: hack for when stopping short
+    # indexes = indexes[: len(indexes_checksum)]
+    # elapsed_time = elapsed_time[: len(indexes_checksum)]
 
     if len(indexes) != len(indexes_checksum):
         print(len(indexes), len(elapsed_time), len(indexes_checksum), len(speeds))
@@ -229,6 +227,12 @@ def main():
         )
     for idx, (lhs, rhs) in enumerate(zip(indexes, indexes_checksum)):
         if lhs != rhs:
+            if idx < 10:
+                print(indexes[:idx])
+                print(indexes_checksum[:idx])
+            else:
+                print(indexes[idx - 10 : idx + 1])
+                print(indexes_checksum[idx - 10 : idx + 1])
             raise AssertionError("Mismatched index %d: %s, %s" % (idx, lhs, rhs))
 
     plot(indexes=indexes, elapsed_time=elapsed_time, speeds=speeds)

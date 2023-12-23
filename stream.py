@@ -9,7 +9,7 @@ import cv2
 
 
 def stream_files(path):
-    for root, _dirs, files in os.walk("data/lake_nakaru_r/001/"):
+    for root, _dirs, files in os.walk(path):
         for shortname in sorted(files):
             filename = os.path.join(root, shortname)
             if not filename.endswith(".jpeg"):
@@ -118,7 +118,7 @@ def stream_speed(path, verbose=False, interactive=False):
 
             if abs(delta_speed) > 10 or delta_index > 10:
                 print("large delta")
-                if interactive or True:
+                if interactive:
                     print(
                         idx,
                         "visualization ocr",
@@ -161,7 +161,7 @@ def stream_speed(path, verbose=False, interactive=False):
                 ocr_b = pytesseract.image_to_string(
                     speed_slice_threshold, config=TESS_CONFIG_STR
                 )
-                ocr_b = ocr_b.strip("\w")
+                ocr_b = ocr_b.strip(r"\w")
                 print("thre ocr", ocr_b)
 
                 for i in range(14):
@@ -257,42 +257,45 @@ def stream_times(path, verbose=False, interactive=False):
         cv2.waitKey(0)
 
 
-def plot(indexes, elapsed_time, speeds):
-    elapsed_time = list(
-        map(lambda x: x.total_seconds() if x is not None else None, elapsed_time)
-    )
-    start_time_index = len(elapsed_time) - list(reversed(elapsed_time)).index(0.0) - 1
-
+def plot(*args):
     print("Plotting")
-
-    travel = np.array(indexes[start_time_index:])
-    elapsed_time = np.array(elapsed_time[start_time_index:])
-    speeds = np.array(speeds[start_time_index:])
 
     fig, axs = plt.subplots(figsize=(1920.0 / 300, 1080.0 / 300), ncols=1, nrows=3)
 
     for i in range(3):
         axs[i].set_xlabel("Travel [m] (incorrect for now)")
 
-    top = axs[0]
+    for key, (indexes, elapsed_time, speeds) in enumerate(args):
+        elapsed_time = list(
+            map(lambda x: x.total_seconds() if x is not None else None, elapsed_time)
+        )
+        start_time_index = (
+            len(elapsed_time) - list(reversed(elapsed_time)).index(0.0) - 1
+        )
 
-    top.set_ylabel("Speed (mph)")
-    top.set_ylim(bottom=0, top=1.1 * max([s for s in speeds if s is not None]))
-    top.plot(travel, speeds)
+        travel = np.array(indexes[start_time_index:])
+        elapsed_time = np.array(elapsed_time[start_time_index:])
+        speeds = np.array(speeds[start_time_index:])
 
-    mid = axs[1]
+        top = axs[0]
 
-    mid.set_ylabel("Elapsed Time (sec)")
-    mid.set_ylim(bottom=0, top=1.1 * np.max(elapsed_time))
-    mid.plot(travel, elapsed_time)
+        top.set_ylabel("Speed (mph)")
+        top.set_ylim(bottom=0, top=1.1 * max([s for s in speeds if s is not None]))
+        top.plot(travel, speeds, label=str(key))
 
-    bottom = axs[2]
+        mid = axs[1]
 
-    rpm = 4 + 2 * np.sin(travel / 2.0)
+        mid.set_ylabel("Elapsed Time (sec)")
+        mid.set_ylim(bottom=0, top=1.1 * np.max(elapsed_time))
+        mid.plot(travel, elapsed_time, label=str(key))
 
-    bottom.set_ylabel("Rpm (rev / min)")
-    bottom.set_ylim(bottom=0, top=1.1 * np.max(rpm))
-    bottom.plot(travel, rpm)
+        bottom = axs[2]
+
+        rpm = 4 + 2 * np.sin(travel / 2.0)
+
+        bottom.set_ylabel("Rpm (rev / min)")
+        bottom.set_ylim(bottom=0, top=1.1 * np.max(rpm))
+        bottom.plot(travel, rpm, label=str(key))
 
     plt.tight_layout()
     plt.show()
@@ -309,12 +312,29 @@ def main():
         if idx > limit:
             break
 
+    speeds2 = []
+    for idx, speed in tqdm(stream_speed("data/lake_nakaru_r/002/")):
+        speeds2.append(speed)
+
+        if idx > limit:
+            break
+
     indexes = []
     elapsed_time = []
 
     for idx, delta_t in tqdm(stream_times("data/lake_nakaru_r/001/")):
         indexes.append(idx)
         elapsed_time.append(delta_t)
+
+        if idx > limit:
+            break
+
+    indexes2 = []
+    elapsed_time2 = []
+
+    for idx, delta_t in tqdm(stream_times("data/lake_nakaru_r/002/")):
+        indexes2.append(idx)
+        elapsed_time2.append(delta_t)
 
         if idx > limit:
             break
@@ -338,7 +358,7 @@ def main():
                 print(indexes_checksum[idx - 10 : idx + 1])
             raise AssertionError("Mismatched index %d: %s, %s" % (idx, lhs, rhs))
 
-    plot(indexes=indexes, elapsed_time=elapsed_time, speeds=speeds)
+    plot((indexes, elapsed_time, speeds), (indexes2, elapsed_time2, speeds2))
 
 
 if __name__ == "__main__":

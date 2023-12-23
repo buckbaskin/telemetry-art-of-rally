@@ -30,6 +30,55 @@ progress_bottom_right = (55, 1006)
 time_top_left = (1695, 45)
 time_bottom_right = (1840, 100)
 
+speed_top_left = (692 + 10, 1011 + 10)
+speed_bottom_right = (789, 1067 - 5)
+
+
+def stream_speed(path, verbose=False, interactive=False):
+    last_speed = None
+
+    for idx, file_contents in enumerate(stream_files(path)):
+        speed_slice = file_contents[
+            speed_top_left[1] : speed_bottom_right[1],
+            speed_top_left[0] : speed_bottom_right[0],
+            :,
+        ]
+
+        if verbose:
+            print(idx, "Processing")
+
+        ocr_speed = pytesseract.image_to_string(speed_slice)
+        ocr_speed = ocr_speed.strip(r"\w")
+        ocr_speed = ocr_speed.strip(r"\x0c")
+
+        matches = re.search(r"(\d+)", ocr_speed)
+        happy_regex = False
+        if matches is not None and len(matches.groups()) == 1:
+            happy_regex = True
+
+        print(idx, "pytesseract")
+        print(
+            "ocr text",
+            (len(ocr_speed), ocr_speed) if len(ocr_speed) > 1 else "? " + ocr_speed,
+        )
+        print(
+            idx,
+            "Happy Regex?",
+            happy_regex,
+            matches.groups() if matches is not None else "x-x-x",
+        )
+        if happy_regex:
+            (speed,) = matches.groups()
+            yield idx, int(speed)
+        else:
+            if interactive:
+                print(idx, "visualization")
+                cv2.imshow(WINDOW_NAME, speed_slice)
+                print("Waiting for Key")
+                cv2.waitKey(0)
+
+            yield idx, None
+
 
 def stream_times(path, verbose=False, interactive=False):
     last_time = None
@@ -87,6 +136,9 @@ def stream_times(path, verbose=False, interactive=False):
 
             last_time = (idx, current_time)
 
+        if last_time is None:
+            yield idx, None
+
     assert last_time is not None
 
     # end of loop, give the last time
@@ -105,14 +157,17 @@ def stream_times(path, verbose=False, interactive=False):
         cv2.waitKey(0)
 
 
-def plot(indexes, elapsed_time):
-    elapsed_time = list(map(lambda x: x.total_seconds(), elapsed_time))
+def plot(indexes, elapsed_time, speeds):
+    elapsed_time = list(
+        map(lambda x: x.total_seconds() if x is not None else None, elapsed_time)
+    )
     start_time_index = len(elapsed_time) - list(reversed(elapsed_time)).index(0.0) - 1
 
     print("Plotting")
 
     travel = np.array(indexes[start_time_index:])
     elapsed_time = np.array(elapsed_time[start_time_index:])
+    speeds = np.array(speeds[start_time_index:])
 
     fig, axs = plt.subplots(figsize=(1920.0 / 300, 1080.0 / 300), ncols=1, nrows=3)
 
@@ -120,11 +175,10 @@ def plot(indexes, elapsed_time):
         axs[i].set_xlabel("Travel [m] (incorrect for now)")
 
     top = axs[0]
-    speed = 60 + 5 * np.sin(travel / 5.0)
 
     top.set_ylabel("Speed (mph)")
-    top.set_ylim(bottom=0, top=1.1 * np.max(speed))
-    top.plot(travel, speed)
+    top.set_ylim(bottom=0, top=1.1 * max([s for s in speeds if s is not None]))
+    top.plot(travel, speeds)
 
     mid = axs[1]
 
@@ -152,10 +206,32 @@ def main():
         indexes.append(idx)
         elapsed_time.append(delta_t)
 
-        if idx > 100 or delta_t.total_seconds() > 60.0:
+        if idx > 150:
             break
 
-    plot(indexes=indexes, elapsed_time=elapsed_time)
+    indexes_checksum = []
+    speeds = []
+    for idx, speed in tqdm(stream_speed("data/lake_nakaru_r/001/")):
+        indexes_checksum.append(idx)
+        speeds.append(speed)
+
+        if idx > 100:
+            break
+
+    # TODO: hack for when stopping short
+    indexes = indexes[: len(indexes_checksum)]
+    elapsed_time = elapsed_time[: len(indexes_checksum)]
+
+    if len(indexes) != len(indexes_checksum):
+        print(len(indexes), len(elapsed_time), len(indexes_checksum), len(speeds))
+        raise AssertionError(
+            "Mismatched data sizes: %d vs %s" % (len(indexes), len(indexes_checksum))
+        )
+    for idx, (lhs, rhs) in enumerate(zip(indexes, indexes_checksum)):
+        if lhs != rhs:
+            raise AssertionError("Mismatched index %d: %s, %s" % (idx, lhs, rhs))
+
+    plot(indexes=indexes, elapsed_time=elapsed_time, speeds=speeds)
 
 
 if __name__ == "__main__":

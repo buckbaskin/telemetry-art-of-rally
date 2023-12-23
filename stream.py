@@ -39,8 +39,8 @@ TESS_CONFIG_STR = "--psm 7 -c tessedit_char_whitelist=0123456789"
 TESS_CONFIG_FMT = "--psm %d -c tessedit_char_whitelist=0123456789"
 
 
-def stream_speed(path, verbose=True, interactive=True):
-    last_speed = None
+def stream_speed(path, verbose=False, interactive=False):
+    last_speed = (0, 0)
 
     for idx, file_contents in enumerate(stream_files(path)):
         speed_slice = file_contents[
@@ -52,7 +52,19 @@ def stream_speed(path, verbose=True, interactive=True):
         if verbose:
             print(idx, "Processing")
 
-        ocr_speed = pytesseract.image_to_string(speed_slice, config=TESS_CONFIG_STR)
+        speed_slice_gray = cv2.cvtColor(speed_slice, cv2.COLOR_RGB2GRAY)
+        threshold, speed_slice_threshold = cv2.threshold(
+            speed_slice_gray, 150, 255, cv2.THRESH_BINARY_INV
+        )
+        speed_slice_threshold = cv2.cvtColor(speed_slice_threshold, cv2.COLOR_GRAY2RGB)
+        if verbose:
+            print(speed_slice_threshold.shape)
+        assert len(speed_slice_threshold.shape) == 3
+        assert speed_slice_threshold.shape[2] == 3
+
+        ocr_speed = pytesseract.image_to_string(
+            speed_slice_threshold, config=TESS_CONFIG_STR
+        )
         ocr_speed = ocr_speed.strip(r"\w")
         ocr_speed = ocr_speed.strip(r"\x0c")
 
@@ -75,7 +87,54 @@ def stream_speed(path, verbose=True, interactive=True):
             )
         if happy_regex:
             (speed,) = matches.groups()
-            yield idx, int(speed)
+            speed = int(speed)
+
+            delta_speed = speed - last_speed[1]
+            delta_index = idx - last_speed[0]
+
+            ratio = float(delta_speed) / delta_index
+
+            if abs(ratio) > 7.0:
+                # skip outlier
+                print("skip ", delta_speed, "/", delta_index, "ratio", ratio)
+                if interactive:
+                    print(
+                        idx,
+                        "visualization ocr",
+                        ocr_speed,
+                        "speed",
+                        speed,
+                        "last",
+                        last_speed[1],
+                    )
+                    cv2.imshow(WINDOW_NAME, speed_slice)
+                    cv2.imshow(WINDOW_NAME + "T", speed_slice_threshold)
+                    cv2.waitKey(0)
+
+                yield idx, None
+                continue
+
+            print("delta", delta_speed, "/", delta_index, "ratio", ratio)
+
+            if abs(delta_speed) > 10 or delta_index > 10:
+                print("large delta")
+                if interactive or True:
+                    print(
+                        idx,
+                        "visualization ocr",
+                        ocr_speed,
+                        "speed",
+                        speed,
+                        "last",
+                        last_speed[1],
+                    )
+                    cv2.imshow(WINDOW_NAME, speed_slice)
+                    cv2.imshow(WINDOW_NAME + "T", speed_slice_threshold)
+                    cv2.waitKey(0)
+
+            yield idx, speed
+            last_speed = (idx, speed)
+
         else:
             if interactive and idx > 50:
                 print(idx, "visualization")
@@ -240,11 +299,15 @@ def plot(indexes, elapsed_time, speeds):
 
 
 def main():
+    limit = 10000
     indexes_checksum = []
     speeds = []
     for idx, speed in tqdm(stream_speed("data/lake_nakaru_r/001/")):
         indexes_checksum.append(idx)
         speeds.append(speed)
+
+        if idx > limit:
+            break
 
     indexes = []
     elapsed_time = []
@@ -252,6 +315,9 @@ def main():
     for idx, delta_t in tqdm(stream_times("data/lake_nakaru_r/001/")):
         indexes.append(idx)
         elapsed_time.append(delta_t)
+
+        if idx > limit:
+            break
 
     # # TODO: hack for when stopping short
     # indexes = indexes[: len(indexes_checksum)]

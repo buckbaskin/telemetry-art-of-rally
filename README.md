@@ -18,7 +18,7 @@ Screenshot from Art of Rally game showing model car driving 82 mph
 Key Elements / Features:
 - [x] Elapsed Time (top right)
 - [ ] Progress along the track (left hand side)
-- [ ] Speed (bottom center, left)
+- [x] Speed (bottom center, left)
 - [ ] Gear (bottom center, center)
 - [ ] Engine RPM (bottom center, right)
 

@@ -29,7 +29,7 @@ time_top_left = (1695, 45)
 time_bottom_right = (1840, 100)
 
 
-def stream_times(path):
+def stream_times(path, verbose=False, interactive=False):
     last_time = None
 
     for idx, file_contents in enumerate(stream_files(path)):
@@ -39,7 +39,8 @@ def stream_times(path):
             :,
         ]
 
-        print(idx, "Processing")
+        if verbose:
+            print(idx, "Processing")
         ocr_time = pytesseract.image_to_string(time_slice)
         ocr_time = ocr_time.strip(r"\w")
 
@@ -55,7 +56,8 @@ def stream_times(path):
             )
 
             if last_time is None:
-                print("Defer", idx)
+                if verbose:
+                    print("Defer", idx)
                 last_time = (idx, current_time)
                 continue
 
@@ -63,18 +65,22 @@ def stream_times(path):
 
             dt = (current_time - last_duration) / (idx - last_idx)
             if dt.total_seconds() > 0.40 or dt.total_seconds() <= -0.001:
-                print("Ignoring Large Dt", dt)
+                if verbose:
+                    print("Ignoring Large Dt", dt)
 
-                print(idx, "pytesseract")
-                print(ocr_time)
-                print(idx, "Happy Regex", matches.groups())
-                cv2.imshow(WINDOW_NAME, time_slice)
-                print("Waiting for Key")
-                cv2.waitKey(0)
+                if interactive:
+                    print(idx, "pytesseract")
+                    print(ocr_time)
+                    print(idx, "Happy Regex", matches.groups())
+                    cv2.imshow(WINDOW_NAME, time_slice)
+                    print("Waiting for Key")
+                    cv2.waitKey(0)
+
                 continue
 
             for yield_idx in range(last_time[0], idx):
-                print("Share", yield_idx, dt.total_seconds())
+                if verbose:
+                    print("Share", yield_idx, dt.total_seconds())
                 yield yield_idx, last_duration + (dt * (yield_idx - last_idx))
 
             last_time = (idx, current_time)
@@ -83,17 +89,18 @@ def stream_times(path):
 
     # end of loop, give the last time
     for yield_idx in range(last_time[0], idx):
-        print("Cleanup", idx)
+        if verbose:
+            print("Cleanup", idx)
         yield yield_idx, last_duration + (dt * (yield_idx - last_idx))
 
-    print("Last Frame")
-    print(idx, "pytesseract")
-    print(ocr_time)
-    print(idx, "Happy Regex", matches.groups())
-    cv2.imshow(WINDOW_NAME, time_slice)
-    print("Waiting for Key")
-    cv2.waitKey(0)
-    continue
+    if interactive:
+        print("Last Frame")
+        print(idx, "pytesseract")
+        print(ocr_time)
+        print(idx, "Happy Regex", matches.groups())
+        cv2.imshow(WINDOW_NAME, time_slice)
+        print("Waiting for Key")
+        cv2.waitKey(0)
 
 
 for idx, delta_t in stream_times("data/lake_nakaru_r/001/"):

@@ -3,6 +3,7 @@
 ## One Time Setup
 
 ```
+sudo apt install tesseract-ocr
 python3 -m virtualenv v/
 source v/bin/activate
 pip install -r requirements.txt
